@@ -359,23 +359,6 @@
     if (audioCtx.state === "suspended") audioCtx.resume();
   }
 
-  // 指针划过一格时的柔和“哒”声
-  function tick() {
-    if (muted) return;
-    ensureAudio();
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(650, t);
-    osc.frequency.exponentialRampToValueAtTime(380, t + 0.04);
-    gain.gain.setValueAtTime(0.05, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + 0.08);
-  }
-
   // 结果揭晓的上行小琶音
   function win() {
     if (muted) return;
@@ -410,9 +393,6 @@
     const delta = target - startRotation;
     const duration = 4200 + Math.random() * 600;
     const startTime = performance.now();
-    const segDeg = 360 / N;
-    let lastIndex = -1;
-    let lastTick = 0;
 
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
@@ -420,14 +400,6 @@
       const t = Math.min((now - startTime) / duration, 1);
       rotation = startRotation + delta * easeOutCubic(t);
       applyRotation();
-
-      // 指针划过扇区边界时“哒”一声
-      const norm = ((rotation % 360) + 360) % 360;
-      const idx = Math.floor(((360 - norm) % 360) / segDeg);
-      if (idx !== lastIndex) {
-        lastIndex = idx;
-        if (t < 1 && now - lastTick > 50) { lastTick = now; tick(); }
-      }
 
       if (t < 1) {
         requestAnimationFrame(frame);
