@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>今天吃什么 · 转盘</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --accent: #ff5e57;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    background: radial-gradient(circle at 50% 20%, #2b2b4a 0%, #1a1a2e 60%, #12121f 100%);
+    color: #fff;
+    padding: 24px 12px;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-size: 28px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+  h1 .emoji { display: inline-block; animation: bob 2s ease-in-out infinite; }
+  @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
+
+  .wheel-wrap {
+    position: relative;
+    width: min(88vw, 420px);
+    aspect-ratio: 1 / 1;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.5));
+  }
+
+  /* 顶部指针 */
+  .pointer {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-top: 34px solid #ffd54f;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+    z-index: 3;
+  }
+  .pointer::after {
+    content: "";
+    position: absolute;
+    top: -34px; left: -7px;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px #ffd54f;
+  }
+
+  /* 中心按钮 */
+  .spin-btn {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 76px; height: 76px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 700;
+    color: #7a3b00;
+    background: radial-gradient(circle at 35% 30%, #ffe08a, #ffb300 70%);
+    box-shadow: 0 4px 0 #c98a00, 0 8px 20px rgba(0,0,0,0.4);
+    z-index: 4;
+    transition: transform 0.1s ease;
+  }
+  .spin-btn:active { transform: translate(-50%, -50%) scale(0.94); }
+  .spin-btn:disabled { cursor: not-allowed; opacity: 0.85; }
+
+  .result {
+    min-height: 56px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: center;
+    padding: 10px 22px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: all 0.3s ease;
+  }
+  .result.hit {
+    background: linear-gradient(90deg, #ff5e57, #ff9f43);
+    border-color: transparent;
+    transform: scale(1.05);
+    box-shadow: 0 8px 24px rgba(255,94,87,0.4);
+  }
+
+  .tip { font-size: 13px; color: rgba(255,255,255,0.5); }
+
+  /* 弹窗 */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+
+  .modal {
+    background: linear-gradient(160deg, #2b2b4a, #1a1a2e);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 22px;
+    padding: 36px 28px 28px;
+    width: min(84vw, 360px);
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    transform: scale(0.7) translateY(20px);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .overlay.show .modal { transform: scale(1) translateY(0); }
+
+  .modal .label {
+    font-size: 15px;
+    color: rgba(255,255,255,0.6);
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+  }
+  .modal .big {
+    font-size: 64px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    line-height: 1.2;
+    background: linear-gradient(90deg, #ffd54f, #ff9f43, #ff5e57);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 6px 0 20px;
+    animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  .modal .btn-row { display: flex; gap: 12px; }
+  .modal button {
+    flex: 1;
+    padding: 13px 0;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #fff;
+    transition: transform 0.1s ease;
+  }
+  .modal button:active { transform: scale(0.95); }
+  .modal .again { background: rgba(255,255,255,0.14); }
+  .modal .ok { background: linear-gradient(90deg, #ff5e57, #ff9f43); }
+</style>
+</head>
+<body>
+  <h1>今天吃什么<span class="emoji">🍜</span></h1>
+
+  <div class="wheel-wrap">
+    <canvas id="wheel" width="800" height="800"></canvas>
+    <div class="pointer"></div>
+    <button class="spin-btn" id="spinBtn">转</button>
+  </div>
+
+  <div class="result" id="result">点「转」看看命运的安排～</div>
+  <div class="tip">共 35 种选择 · 点到即止</div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="label">今天吃</div>
+      <div class="big" id="bigFood"></div>
+      <div class="btn-row">
+        <button class="again" id="againBtn">再转一次</button>
+        <button class="ok" id="okBtn">就吃这个！</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const foods = [
+    "汉堡", "炸鸡", "拌面", "螺蛳粉", "鸭货", "寿司", "冒菜", "关东煮",
+    "烧烤", "糖水", "快餐", "牛杂", "奶茶", "凉面", "饺子", "粥",
+    "云吞", "披萨", "手抓饼", "麻辣烫", "食堂", "手撕鸡", "鱼", "意面",
+    "泰餐", "韩料", "罐罐米线", "牛肉面", "砂锅粉", "辣鸡粉", "车仔面",
+    "火锅鸡", "菌菇炒饭", "炒饭", "烤鸭"
+  ];
+
+  // 色板：相邻段不同色即可
+  const palette = [
+    "#FF6B6B", "#4ECDC4", "#FFD93D", "#6C5CE7", "#FF8C42",
+    "#45B7D1", "#FF6FB5", "#3CB371", "#F39C12", "#9B59B6",
+    "#E74C3C", "#1ABC9C", "#F1C40F", "#3498DB", "#E67E22",
+    "#2ECC71", "#FFA07A", "#8E44AD", "#FD79A8", "#00B894"
+  ];
+
+  const canvas = document.getElementById("wheel");
+  const ctx = canvas.getContext("2d");
+  const btn = document.getElementById("spinBtn");
+  const resultEl = document.getElementById("result");
+  const overlay = document.getElementById("overlay");
+  const bigFood = document.getElementById("bigFood");
+  const againBtn = document.getElementById("againBtn");
+  const okBtn = document.getElementById("okBtn");
+
+  const N = foods.length;
+  const segment = (Math.PI * 2) / N;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const R = canvas.width / 2 - 6;          // 外半径
+  const r = R * 0.24;                       // 内圈（中心按钮区域）
+
+  // 绘制转盘（index 0 从正上方开始）
+  function drawWheel() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < N; i++) {
+      const start = -Math.PI / 2 + i * segment;
+      const end = start + segment;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, start, end);
+      ctx.closePath();
+      ctx.fillStyle = palette[i % palette.length];
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.85)";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    // 外圈描边
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+
+    // 文字（沿半径方向，向外）
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < N; i++) {
+      const mid = -Math.PI / 2 + i * segment + segment / 2;
+      ctx.save();
+      ctx.rotate(mid);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 30px 'PingFang SC','Microsoft YaHei',sans-serif";
+      ctx.shadowColor = "rgba(0,0,0,0.45)";
+      ctx.shadowBlur = 3;
+      const textR = (r + R) / 2 + 8;
+      ctx.fillText(foods[i], textR, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // 内圈白环
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+  }
+
+  let rotation = 0;      // 当前累计旋转角度（度）
+  let spinning = false;
+
+  function applyRotation() {
+    canvas.style.transform = `rotate(${rotation}deg)`;
+  }
+
+  function spin() {
+    if (spinning) return;
+    spinning = true;
+    btn.disabled = true;
+    resultEl.classList.remove("hit");
+    resultEl.textContent = "转动中……";
+
+    // 随机多转几圈 + 随机落点
+    const target = rotation + 360 * (6 + Math.random() * 4) + Math.random() * 360;
+    const startRotation = rotation;
+    const delta = target - startRotation;
+    const duration = 4200 + Math.random() * 600;
+    const startTime = performance.now();
+
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+    function frame(now) {
+      const t = Math.min((now - startTime) / duration, 1);
+      rotation = startRotation + delta * easeOutCubic(t);
+      applyRotation();
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        rotation = target;
+        spinning = false;
+        btn.disabled = false;
+        showResult();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function showResult() {
+    // 指针固定在正上方(12点)。轮盘转了 rotation 度，
+    // 那么正上方对应的是轮盘上哪个角度？
+    const norm = ((rotation % 360) + 360) % 360;
+    // 轮盘上 0 号扇区起始于 -90°，指针角度换算成轮盘本地角度：
+    const pointerLocal = (360 - norm) % 360;   // 度
+    let idx = Math.floor(pointerLocal / (360 / N));
+    idx = (idx + N) % N;
+    const food = foods[idx];
+    resultEl.textContent = `就吃：${food} 🎉`;
+    resultEl.classList.add("hit");
+    bigFood.textContent = food;
+    overlay.classList.add("show");
+  }
+
+  function closeOverlay() { overlay.classList.remove("show"); }
+
+  btn.addEventListener("click", spin);
+  againBtn.addEventListener("click", () => { closeOverlay(); spin(); });
+  okBtn.addEventListener("click", closeOverlay);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeOverlay(); });
+
+  drawWheel();
+  applyRotation();
+</script>
+</body>
+</html>
