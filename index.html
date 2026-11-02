@@ -148,7 +148,16 @@
     margin-bottom: 6px;
   }
   .modal .big {
-    font-size: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 6px 0 20px;
+    animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .modal .big .emoji { font-size: 72px; line-height: 1.1; }
+  .modal .big .name {
+    font-size: 60px;
     font-weight: 900;
     letter-spacing: 2px;
     line-height: 1.2;
@@ -156,8 +165,6 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin: 6px 0 20px;
-    animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
   @keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
@@ -176,6 +183,22 @@
   .modal button:active { transform: scale(0.95); }
   .modal .again { background: rgba(255,255,255,0.14); }
   .modal .ok { background: linear-gradient(90deg, #ff5e57, #ff9f43); }
+
+  /* 静音按钮 */
+  .mute {
+    position: fixed;
+    top: 16px; right: 16px;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 200;
+    transition: background 0.2s;
+  }
+  .mute:hover { background: rgba(255,255,255,0.2); }
 </style>
 </head>
 <body>
@@ -193,7 +216,10 @@
   <div class="overlay" id="overlay">
     <div class="modal">
       <div class="label">今天吃</div>
-      <div class="big" id="bigFood"></div>
+      <div class="big">
+        <span class="emoji" id="bigEmoji"></span>
+        <span class="name" id="bigFood"></span>
+      </div>
       <div class="btn-row">
         <button class="again" id="againBtn">再转一次</button>
         <button class="ok" id="okBtn">就吃这个！</button>
@@ -201,13 +227,45 @@
     </div>
   </div>
 
+  <button class="mute" id="muteBtn" title="静音">🔊</button>
+
 <script>
-  const foods = [
-    "汉堡", "炸鸡", "拌面", "螺蛳粉", "鸭货", "寿司", "冒菜", "关东煮",
-    "烧烤", "糖水", "快餐", "牛杂", "奶茶", "凉面", "饺子", "粥",
-    "云吞", "披萨", "手抓饼", "麻辣烫", "食堂", "手撕鸡", "鱼", "意面",
-    "泰餐", "韩料", "罐罐米线", "牛肉面", "砂锅粉", "辣鸡粉", "车仔面",
-    "火锅鸡", "菌菇炒饭", "炒饭", "烤鸭"
+  const items = [
+    { name: "汉堡", emoji: "🍔" },
+    { name: "炸鸡", emoji: "🍗" },
+    { name: "拌面", emoji: "🍜" },
+    { name: "螺蛳粉", emoji: "🐌" },
+    { name: "鸭货", emoji: "🦆" },
+    { name: "寿司", emoji: "🍣" },
+    { name: "冒菜", emoji: "🌶️" },
+    { name: "关东煮", emoji: "🍢" },
+    { name: "烧烤", emoji: "🍖" },
+    { name: "糖水", emoji: "🍧" },
+    { name: "快餐", emoji: "🍟" },
+    { name: "牛杂", emoji: "🐮" },
+    { name: "奶茶", emoji: "🧋" },
+    { name: "凉面", emoji: "🍜" },
+    { name: "饺子", emoji: "🥟" },
+    { name: "粥", emoji: "🥣" },
+    { name: "云吞", emoji: "🥟" },
+    { name: "披萨", emoji: "🍕" },
+    { name: "手抓饼", emoji: "🫓" },
+    { name: "麻辣烫", emoji: "🍲" },
+    { name: "食堂", emoji: "🍽️" },
+    { name: "手撕鸡", emoji: "🐔" },
+    { name: "鱼", emoji: "🐟" },
+    { name: "意面", emoji: "🍝" },
+    { name: "泰餐", emoji: "🍛" },
+    { name: "韩料", emoji: "🥘" },
+    { name: "罐罐米线", emoji: "🍜" },
+    { name: "牛肉面", emoji: "🍜" },
+    { name: "砂锅粉", emoji: "🍲" },
+    { name: "辣鸡粉", emoji: "🌶️" },
+    { name: "车仔面", emoji: "🍜" },
+    { name: "火锅鸡", emoji: "🍲" },
+    { name: "菌菇炒饭", emoji: "🍄" },
+    { name: "炒饭", emoji: "🍚" },
+    { name: "烤鸭", emoji: "🦆" }
   ];
 
   // 色板：相邻段不同色即可
@@ -224,10 +282,12 @@
   const resultEl = document.getElementById("result");
   const overlay = document.getElementById("overlay");
   const bigFood = document.getElementById("bigFood");
+  const bigEmoji = document.getElementById("bigEmoji");
   const againBtn = document.getElementById("againBtn");
   const okBtn = document.getElementById("okBtn");
+  const muteBtn = document.getElementById("muteBtn");
 
-  const N = foods.length;
+  const N = items.length;
   const segment = (Math.PI * 2) / N;
   const cx = canvas.width / 2;
   const cy = canvas.height / 2;
@@ -272,7 +332,7 @@
       ctx.shadowColor = "rgba(0,0,0,0.45)";
       ctx.shadowBlur = 3;
       const textR = (r + R) / 2 + 8;
-      ctx.fillText(foods[i], textR, 0);
+      ctx.fillText(items[i].name + " " + items[i].emoji, textR, 0);
       ctx.restore();
     }
     ctx.restore();
@@ -286,9 +346,54 @@
 
   let rotation = 0;      // 当前累计旋转角度（度）
   let spinning = false;
+  let muted = false;
 
   function applyRotation() {
     canvas.style.transform = `rotate(${rotation}deg)`;
+  }
+
+  // ---------- 音效（Web Audio 实时合成，无需音频文件） ----------
+  let audioCtx = null;
+  function ensureAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  }
+
+  // 指针划过一格时的“哒”声
+  function tick() {
+    if (muted) return;
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(900, t);
+    osc.frequency.exponentialRampToValueAtTime(450, t + 0.03);
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.06);
+  }
+
+  // 结果揭晓的上行小琶音
+  function win() {
+    if (muted) return;
+    ensureAudio();
+    const t = audioCtx.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const st = t + i * 0.12;
+      osc.type = "sine";
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.0001, st);
+      gain.gain.exponentialRampToValueAtTime(0.2, st + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, st + 0.35);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(st);
+      osc.stop(st + 0.38);
+    });
   }
 
   function spin() {
@@ -297,6 +402,7 @@
     btn.disabled = true;
     resultEl.classList.remove("hit");
     resultEl.textContent = "转动中……";
+    ensureAudio();
 
     // 随机多转几圈 + 随机落点
     const target = rotation + 360 * (6 + Math.random() * 4) + Math.random() * 360;
@@ -304,6 +410,9 @@
     const delta = target - startRotation;
     const duration = 4200 + Math.random() * 600;
     const startTime = performance.now();
+    const segDeg = 360 / N;
+    let lastIndex = -1;
+    let lastTick = 0;
 
     function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
@@ -311,6 +420,15 @@
       const t = Math.min((now - startTime) / duration, 1);
       rotation = startRotation + delta * easeOutCubic(t);
       applyRotation();
+
+      // 指针划过扇区边界时“哒”一声
+      const norm = ((rotation % 360) + 360) % 360;
+      const idx = Math.floor(((360 - norm) % 360) / segDeg);
+      if (idx !== lastIndex) {
+        lastIndex = idx;
+        if (t < 1 && now - lastTick > 50) { lastTick = now; tick(); }
+      }
+
       if (t < 1) {
         requestAnimationFrame(frame);
       } else {
@@ -331,11 +449,13 @@
     const pointerLocal = (360 - norm) % 360;   // 度
     let idx = Math.floor(pointerLocal / (360 / N));
     idx = (idx + N) % N;
-    const food = foods[idx];
-    resultEl.textContent = `就吃：${food} 🎉`;
+    const item = items[idx];
+    resultEl.textContent = `就吃：${item.name} ${item.emoji}`;
     resultEl.classList.add("hit");
-    bigFood.textContent = food;
+    bigEmoji.textContent = item.emoji;
+    bigFood.textContent = item.name;
     overlay.classList.add("show");
+    win();
   }
 
   function closeOverlay() { overlay.classList.remove("show"); }
@@ -344,6 +464,10 @@
   againBtn.addEventListener("click", () => { closeOverlay(); spin(); });
   okBtn.addEventListener("click", closeOverlay);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) closeOverlay(); });
+  muteBtn.addEventListener("click", () => {
+    muted = !muted;
+    muteBtn.textContent = muted ? "🔇" : "🔊";
+  });
 
   drawWheel();
   applyRotation();
